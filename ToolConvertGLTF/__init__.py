@@ -1,163 +1,150 @@
 bl_info = {
-    "name": "Batch Decimate and Summary Export",
+    "name": "GLB to GLTF Converter",
+    "blender": (4, 0, 0),
+    "category": "Import-Export",
+    "description": "Convert GLB to GLTF",
     "author": "Akaverse",
-    "version": (1, 1, 0),
-    "blender": (3, 0, 0),
-    "location": "View3D > Tools",
-    "description": "Batch decimate meshes and export a summary report",
-    "category": "Object",
+    "version": (1, 0, 0),
+    "location": "View3D > UI > GLB to GLTF",
+    "warning": "",
+    "wiki_url": "https://github.com/Akaverse/GLBtoGLTF/wiki",
+    "tracker_url": "https://github.com/Akaverse/GLBtoGLTF/issues",
+    "support": "COMMUNITY",
 }
 
 import bpy
 import os
-import csv
 from bpy.props import StringProperty
+from bpy.types import Operator, Panel
 
-process_queue = []
-summary_data = []
-output_folder_path = None
+# Global variable to store the Image
+addon_image = None
 
-def write_summary_csv(output_folder):
-    summary_csv_path = os.path.join(output_folder, "summary_report.csv")
-    with open(summary_csv_path, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        for entry in summary_data:
-            writer.writerow([f"Model Code: {entry['folder_name']}"])
-            writer.writerow(["Category", "Information"])
-            writer.writerow(["Poly/face (input)", entry['tris_before']])
-            writer.writerow(["Poly/face (output)", entry['tris_after']])
-            writer.writerow(["Texture attached to material", entry['texture_name']])
-            writer.writerow(["Texture size", entry['texture_size']])
-            writer.writerow(["Bit Depth", entry['bit_depth']])  # Ghi thông tin bit depth
-            writer.writerow(["Status", entry['status']])
-            writer.writerow([])
+def load_logo_image():
+    """Loads the image if not already loaded, only executed when panel is drawn."""
+    global addon_image
+    if addon_image is None:
+        addon_directory = os.path.dirname(__file__)
+        image_path = os.path.join(addon_directory, "logo.png")
 
-def process_next_file():
-    global output_folder_path
+        if os.path.exists(image_path):
+            try:
+                # Load the image once
+                addon_image = bpy.data.images.load(image_path)
+                print("Logo loaded successfully.")
+            except RuntimeError as e:
+                print("Error loading logo:", e)
+        else:
+            print("Logo not found at:", image_path)
 
-    if not process_queue:
-        if output_folder_path:
-            write_summary_csv(output_folder_path)
-        return None
+class ImportGLBOperator(Operator):
+    """Select folder with .glb files to convert"""
+    bl_idname = "import_scene.select_glb_input"
+    bl_label = "Select Input Folder (.glb)"
 
-    input_folder, output_folder, dir_name = process_queue.pop(0)
-    folder_path = os.path.join(input_folder, dir_name)
-    output_path = os.path.join(output_folder, dir_name)
-    os.makedirs(output_path, exist_ok=True)
+    directory: StringProperty(subtype='DIR_PATH')
 
-    gltf_file = None
-    bin_file = None
-    for file_name in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, file_name)
-        if file_name.endswith('.gltf'):
-            gltf_file = file_path
-        elif file_name.endswith('.bin'):
-            bin_file = file_path
-
-    if gltf_file:
-        bpy.ops.import_scene.gltf(filepath=gltf_file)
-
-    tris_before = 0
-    tris_after = 0
-    texture_name = "None"
-    texture_size = "None"
-    bit_depth = "None"  # Biến để lưu thông tin bit depth
-    status = "None"
-
-    for obj in bpy.context.selected_objects:
-        if obj.type == 'MESH':
-            tris_before += len(obj.data.polygons)
-            mod = obj.modifiers.new(name="Decimate", type='DECIMATE')
-            mod.ratio = 0.5
-            bpy.ops.object.modifier_apply(modifier=mod.name)
-            tris_after += len(obj.data.polygons)
-
-        for mat_slot in obj.material_slots:
-            if mat_slot.material:
-                for node in mat_slot.material.node_tree.nodes:
-                    if node.type == 'TEX_IMAGE' and node.image:
-                        texture_name = node.image.filepath_raw.split('/')[-1] if node.image.filepath_raw else node.image.name
-                        texture_size = f"{node.image.size[0]}x{node.image.size[1]}"
-                        
-                        # Lấy thông tin bit depth
-                        bit_depth = str(node.image.depth) if hasattr(node.image, 'depth') else "Unknown"
-
-    conditions = []
-    if not (texture_name.endswith('.jpeg') or texture_name.endswith('.jpg') or texture_name.endswith('.png')):
-        conditions.append("Texture Format")
-    if not (texture_size.split("x")[0].isdigit() and int(texture_size.split("x")[0]) < 4000):
-        conditions.append("Texture Size")
-    if bit_depth != "32":  # Kiểm tra bit depth
-        conditions.append("Bit Depth")
-    if tris_after >= 170001:
-        conditions.append("Poly Count")
-
-    status = f"False ({', '.join(conditions)})" if conditions else "True"
-
-    output_file = os.path.join(output_path, dir_name + ".gltf")
-    bpy.ops.export_scene.gltf(filepath=output_file, export_format='GLTF_SEPARATE')
-
-    summary_data.append({
-        "folder_name": dir_name,
-        "tris_before": tris_before,
-        "tris_after": tris_after,
-        "texture_name": texture_name,
-        "texture_size": texture_size,
-        "bit_depth": bit_depth,  # Thêm bit depth vào báo cáo
-        "status": status,
-    })
-
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete()
-    
-    return 0.1
-
-def process_files_async(input_folder, output_folder):
-    global process_queue, summary_data, output_folder_path
-    process_queue = [(input_folder, output_folder, d) for d in os.listdir(input_folder) if os.path.isdir(os.path.join(input_folder, d))]
-    summary_data = []
-    output_folder_path = output_folder
-    bpy.app.timers.register(process_next_file)
-
-class BatchDecimateOperator(bpy.types.Operator):
-    bl_idname = "object.batch_decimate"
-    bl_label = "Batch Decimate"
-    
     def execute(self, context):
-        input_folder = context.scene.input_folder
-        output_folder = context.scene.output_folder
-        if not input_folder or not output_folder:
-            self.report({'ERROR'}, "Input/output folder not selected!")
-            return {'CANCELLED'}
-        process_files_async(input_folder, output_folder)
-        self.report({'INFO'}, "Processing... check the console for progress!")
+        context.scene.glb_input_folder = self.directory
+        self.report({'INFO'}, f"Selected input folder: {self.directory}")
         return {'FINISHED'}
 
-class BatchDecimatePanel(bpy.types.Panel):
-    bl_label = "Batch Decimate"
-    bl_idname = "PT_BatchDecimate"
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+class ExportGLTFOperator(Operator):
+    """Select output folder for .gltf files"""
+    bl_idname = "export_scene.select_gltf_output"
+    bl_label = "Select Output Folder (.gltf)"
+
+    directory: StringProperty(subtype='DIR_PATH')
+
+    def execute(self, context):
+        context.scene.gltf_output_folder = self.directory
+        self.report({'INFO'}, f"Selected output folder: {self.directory}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+class ConvertGLBToGLTFOperator(Operator):
+    """Convert all .glb files in input folder to .gltf"""
+    bl_idname = "convert.glb_to_gltf"
+    bl_label = "Convert"
+
+    def execute(self, context):
+        input_folder = context.scene.glb_input_folder
+        output_folder = context.scene.gltf_output_folder
+
+        if not input_folder or not output_folder:
+            self.report({'ERROR'}, "Please select both input and output folders.")
+            return {'CANCELLED'}
+
+        for filename in os.listdir(input_folder):
+            if filename.endswith(".glb"):
+                input_path = os.path.join(input_folder, filename)
+                folder_name = os.path.splitext(filename)[0]
+                output_subfolder = os.path.join(output_folder, folder_name)
+                os.makedirs(output_subfolder, exist_ok=True)
+                output_path = os.path.join(output_subfolder, folder_name + ".gltf")
+
+                bpy.ops.import_scene.gltf(filepath=input_path)
+                bpy.ops.export_scene.gltf(filepath=output_path, export_format='GLTF_SEPARATE')
+                bpy.ops.object.select_all(action='SELECT')
+                bpy.ops.object.delete(use_global=False)
+
+                self.report({'INFO'}, f"Converted: {filename} -> {output_path}")
+
+        self.report({'INFO'}, "Conversion completed for all .glb files.")
+        return {'FINISHED'}
+
+class GLBtoGLTFPanel(Panel):
+    """Main panel for GLB to GLTF conversion"""
+    bl_label = "GLB to GLTF Converter"
+    bl_idname = "OBJECT_PT_glb_to_gltf"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Tools'
-    
+    bl_category = "GLB to GLTF"
+
     def draw(self, context):
+        global addon_image
         layout = self.layout
         scene = context.scene
-        layout.prop(scene, "input_folder")
-        layout.prop(scene, "output_folder")
-        layout.operator("object.batch_decimate")
+
+        load_logo_image()  # Load the logo image if not already loaded
+
+        if addon_image:
+            # Directly display the image with layout.template_ID_preview
+            layout.template_ID_preview(bpy.data.images, "logo.png", rows=1, cols=1)
+        else:
+            layout.label(text="Logo not loaded.")
+
+        layout.prop(scene, "glb_input_folder", text="Input")
+        layout.prop(scene, "gltf_output_folder", text="Output")
+        layout.operator("convert.glb_to_gltf", text="Convert")
 
 def register():
-    bpy.utils.register_class(BatchDecimateOperator)
-    bpy.utils.register_class(BatchDecimatePanel)
-    bpy.types.Scene.input_folder = StringProperty(name="Input Folder", description="Folder containing the files to process", subtype='DIR_PATH')
-    bpy.types.Scene.output_folder = StringProperty(name="Output Folder", description="Folder to save processed files", subtype='DIR_PATH')
+    bpy.utils.register_class(ImportGLBOperator)
+    bpy.utils.register_class(ExportGLTFOperator)
+    bpy.utils.register_class(ConvertGLBToGLTFOperator)
+    bpy.utils.register_class(GLBtoGLTFPanel)
+    bpy.types.Scene.glb_input_folder = StringProperty(name="Input Folder", subtype='DIR_PATH')
+    bpy.types.Scene.gltf_output_folder = StringProperty(name="Output Folder", subtype='DIR_PATH')
 
 def unregister():
-    bpy.utils.unregister_class(BatchDecimateOperator)
-    bpy.utils.unregister_class(BatchDecimatePanel)
-    del bpy.types.Scene.input_folder
-    del bpy.types.Scene.output_folder
+    bpy.utils.unregister_class(ImportGLBOperator)
+    bpy.utils.unregister_class(ExportGLTFOperator)
+    bpy.utils.unregister_class(ConvertGLBToGLTFOperator)
+    bpy.utils.unregister_class(GLBtoGLTFPanel)
+    del bpy.types.Scene.glb_input_folder
+    del bpy.types.Scene.gltf_output_folder
+
+    global addon_image
+    if addon_image and addon_image.name in bpy.data.images:
+        bpy.data.images.remove(addon_image)
+    addon_image = None
 
 if __name__ == "__main__":
     register()

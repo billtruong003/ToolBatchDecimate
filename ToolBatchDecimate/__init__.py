@@ -1,6 +1,6 @@
 bl_info = {
     "name": "Batch Decimate",
-    "author": "Akaverse",
+    "author": "Bill The Dev",
     "version": (1, 0, 0),
     "blender": (3, 0, 0),
     "location": "View3D > Tools",

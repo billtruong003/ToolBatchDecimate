@@ -1,21 +1,21 @@
-# README: Batch Decimate and Summary Export Addon for Blender
+# README: Batch Decimate Addon for Blender
 
 ## Overview
-The **Batch Decimate and Summary Export Addon** is a Blender tool designed to automate the process of decimating meshes and exporting a detailed summary report in CSV format. This is useful for optimizing 3D assets in bulk and tracking the results.
+The **Batch Decimate Addon** is a Blender tool designed to automate the process of decimating meshes in multiple GLTF files. It allows you to batch process models by applying a decimate modifier to reduce the polycount, making the models more optimized for use in real-time applications. The addon also exports the processed models into a designated output folder.
 
 ---
 
 ## Features
-1. **Batch Decimation**: Applies a decimation modifier to all meshes in a folder of GLTF files, reducing polycount to 50%.
-2. **Texture Analysis**: Extracts texture information, including file name, resolution, and color space.
-3. **Validation and Reporting**: Outputs a CSV report summarizing polycount changes, texture details, and validation status.
-4. **Export Results**: Outputs optimized models and the summary report to a designated folder.
+1. **Batch Decimation**: Automatically applies a decimation modifier to all meshes in a folder of GLTF files, reducing their polycount by 50%.
+2. **Efficient Processing**: Processes models one by one asynchronously, so you can continue working in Blender while the addon processes your models in the background.
+3. **File Management**: Keeps the same folder structure for output files as the input folder.
+4. **Model Export**: Outputs optimized models in GLTF format to a specified output folder.
 
 ---
 
 ## Requirements
 - **Blender**: Version 3.0.0 or newer.
-- Input files must be in **GLTF** format with textures properly linked.
+- Input files must be in **GLTF** format with associated textures properly linked.
 
 ---
 
@@ -31,55 +31,60 @@ The **Batch Decimate and Summary Export Addon** is a Blender tool designed to au
 ## Usage Instructions
 
 ### Step 1: Prepare Input and Output Folders
-- Create an **Input Folder** containing the GLTF files you want to process. Each model should be in its own folder, with its associated textures and `.bin` files if necessary.
-- Create an **Output Folder** where optimized files and the CSV report will be saved.
-- **Important**: Use separate folders for input and output to prevent overwriting or confusion during processing.
+- **Input Folder**: This folder should contain the GLTF files you want to decimate. Each model should be in its own folder, with its associated textures and `.bin` files if necessary.
+- **Output Folder**: Create a folder where the processed GLTF files will be saved.
+- **Important**: Ensure that the **Input** and **Output** folders are separate to avoid overwriting files.
 
 ### Step 2: Using the Addon
-1. In Blender, switch to the **3D Viewport**.
-2. Open the **Tools** tab on the right-hand side (shortcut: `N` to toggle).
-3. Locate the **Batch Decimate** panel.
+1. Open Blender and switch to the **3D Viewport**.
+2. Press `N` to open the **Tools** tab on the right-hand side.
+3. Find the **Batch Decimate** panel.
 4. Set the paths for:
-   - **Input Folder**: Path to the folder containing your input models.
-   - **Output Folder**: Path to the folder where the results will be saved.
-5. Click **Batch Decimate** to start the process.
+   - **Input Folder**: The path to the folder containing your input GLTF models.
+   - **Output Folder**: The path where the decimated models will be saved.
+5. Click **Batch Decimate** to begin the decimation process.
 
 ### Step 3: Review Results
-- Decimated models will be saved in the Output Folder with the same folder structure as the Input Folder.
-- A `summary_report.csv` file will be generated in the Output Folder. This file includes:
-  - **Model Code**: Name of the processed folder.
-  - **Poly/face (input/output)**: Polygon counts before and after decimation.
-  - **Texture Information**: Name, size, and color space of attached textures.
-  - **Status**: Indicates whether the model passed validation for texture format, size, and polycount.
+- The processed models will be saved in the **Output Folder**, maintaining the original folder structure from the **Input Folder**.
+- Decimated models will be saved in `.gltf` format in the output folder.
 
 ---
 
 ## Notes
-- The decimation ratio is set to 50%. You can modify this in the script if needed.
-- Validation checks for:
-  - Texture format (`.png`, `.jpg`, or `.jpeg`).
-  - Texture size (less than 4000 pixels on any axis).
-  - Texture color space (`sRGB`).
-  - Polycount after decimation (less than 170,000).
-- If a model fails validation, the `Status` column in the CSV will indicate the reasons.
+- **Decimation Ratio**: The decimation modifier is set to reduce the polycount by 50%. You can change this ratio in the script if necessary by modifying `mod.ratio = 0.5`.
+- The addon will create separate subfolders within the output folder corresponding to each model in the input folder.
+- You can monitor the decimation progress via the console, as the addon runs asynchronously in the background.
 
 ---
 
 ## Recommendations
-- Always use separate folders for **Input** and **Output**.
-- Review the `summary_report.csv` file to check for any issues.
-- Keep backups of the original files in case manual fixes are required.
+- **Organize your folders**: Always use separate folders for **Input** and **Output** to avoid overwriting.
+- **Check the Output Folder**: After processing, review the output folder to ensure that the models have been properly decimated and exported.
+- **Backup Originals**: Keep backups of the original models in case manual adjustments are needed.
 
 ---
 
 ## Troubleshooting
-- **Textures Missing in Report**: Ensure textures are properly linked to the materials in the input models.
-- **CSV Report Empty**: Verify that the Input Folder contains valid GLTF files and textures.
-- **Output Folder Overwrites Input**: Always ensure Input and Output folders are different.
+- **Textures Missing in Processed Models**: Ensure that all textures are properly linked to the models in the input GLTF files.
+- **No Processed Files in Output Folder**: Double-check that the **Input Folder** contains valid GLTF files and that the **Output Folder** is properly set.
+- **No Progress Feedback**: Make sure the console is open to view progress updates, as the addon runs asynchronously.
 
 ---
 
 ## Uninstallation
 1. Open **Edit > Preferences > Add-ons**.
-2. Search for "Batch Decimate and Summary Export."
-3. Click **Remove**.
+2. Search for "Batch Decimate".
+3. Click **Remove** to uninstall the addon.
+
+---
+
+### Additional Information
+
+The addon processes files asynchronously using Blender’s `bpy.app.timers.register()` to avoid blocking the user interface while the models are being processed in the background. This makes it possible to decimate multiple models without interrupting other tasks in Blender.
+
+### Contact
+
+For any questions or contributions, feel free to reach out to me via:
+
+- GitHub: [Bill Truong's GitHub](https://github.com/billtruong003)
+- Email: truongbill003@gmail.com
